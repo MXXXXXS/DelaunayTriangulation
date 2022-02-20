@@ -1,5 +1,12 @@
 /* eslint-disable no-debugger */
-import { intersection, intersectionWith, uniq } from 'lodash'
+import {
+  entries,
+  filter,
+  intersection,
+  intersectionWith,
+  uniq,
+  uniqWith,
+} from 'lodash'
 
 import { Circum, circum } from '~/utils/circum'
 import {
@@ -144,70 +151,96 @@ function addPoint(pq: PointName) {
     }
   })
 
-  const pointsContiguous = uniq(
-    verticesNeedDelete.reduce((acc, v) => {
-      const { formingPoints } = vertices.get(v) as Vertex
-      acc.push(...formingPoints)
-      return acc
-    }, [] as PointName[])
+  const { pointsContiguous, affectedContiguities } = verticesNeedDelete.reduce(
+    ({ pointsContiguous, affectedContiguities }, v, index, arr) => {
+      const {
+        formingPoints,
+        formingPoints: [a, b, c],
+      } = vertices.get(v) as Vertex
+      pointsContiguous.push(...formingPoints)
+      affectedContiguities.push(
+        `${a}${splitter}${b}`,
+        `${b}${splitter}${c}`,
+        `${a}${splitter}${c}`
+      )
+      if (index === arr.length - 1) {
+        pointsContiguous = uniq(pointsContiguous)
+        affectedContiguities = uniqWith(
+          affectedContiguities,
+          (contiguityNameA, contiguityNameB) => {
+            return isSameContiguity(contiguityNameA, contiguityNameB)
+          }
+        )
+      }
+      return { pointsContiguous, affectedContiguities }
+    },
+    { pointsContiguous: [], affectedContiguities: [] } as {
+      pointsContiguous: PointName[]
+      affectedContiguities: ContiguityName[]
+    }
   )
-
-  verticesNeedDelete.forEach((vertexName) => {
-    vertices.delete(vertexName)
-  })
 
   const newVertices: (Omit<Vertex, 'neighbouringVertices'> & {
     neighbouringVertices: VertexName[]
   })[] = []
-  Array.from(contiguities.entries()).forEach(([contiguityName, contiguity]) => {
-    const contiguityPoints = contiguityName.split(splitter) as [
-      PointName,
-      PointName
-    ]
-    const hasDeletedContiguousPoints = intersection(
-      contiguityPoints,
-      pointsContiguous
-    )
-    if (hasDeletedContiguousPoints.length === 0) return
-    const [deletedState, reservedVertices] = contiguity.vertices.reduce(
-      (acc, name) => {
-        if (verticesNeedDelete.includes(name)) {
-          acc[0]++
-        } else {
-          acc[1].push(name)
+
+  affectedContiguities
+    .map((contiguityName): [ContiguityName, Contiguity] => {
+      const [p0, p1] = contiguityName.split(splitter) as [PointName, PointName]
+      const contiguity =
+        contiguities.get(contiguityName) ||
+        (contiguities.get(`${p1}${splitter}${p0}`) as Contiguity)
+      return [contiguityName, contiguity]
+    })
+    .forEach(([contiguityName, contiguity]) => {
+      const contiguityPoints = contiguityName.split(splitter) as [
+        PointName,
+        PointName
+      ]
+      const [deletedState, reservedVertices] = contiguity.vertices.reduce(
+        (acc, name) => {
+          if (verticesNeedDelete.includes(name)) {
+            acc[0]++
+          } else {
+            acc[1].push(name)
+          }
+          return acc
+        },
+        [0, []] as [ContiguityDeletedStates, VertexName[]]
+      )
+      switch (deletedState) {
+        case ContiguityDeletedStates.half: {
+          const newFormingPoints = [pq, ...contiguityPoints] as FormingPoints
+          const newVertexName: VertexName = `v${vertexIndex++}`
+          const { r2, center } = circum(
+            ...(newFormingPoints.map((p) => points.get(p)?.coord as Coord) as [
+              Coord,
+              Coord,
+              Coord
+            ])
+          )
+          if (reservedVertices.length !== 1) {
+            debugger
+          }
+          newVertices.push({
+            center,
+            r2,
+            name: newVertexName,
+            formingPoints: newFormingPoints,
+            neighbouringVertices: reservedVertices,
+          })
+          break
         }
-        return acc
-      },
-      [0, []] as [ContiguityDeletedStates, VertexName[]]
-    )
-    switch (deletedState) {
-      case ContiguityDeletedStates.half: {
-        const newFormingPoints = [pq, ...contiguityPoints] as FormingPoints
-        const newVertexName: VertexName = `v${vertexIndex++}`
-        const { r2, center } = circum(
-          ...(newFormingPoints.map((p) => points.get(p)?.coord as Coord) as [
-            Coord,
-            Coord,
-            Coord
-          ])
-        )
-        if (reservedVertices.length !== 1) {
-          debugger
+        case ContiguityDeletedStates.deleted: {
+          contiguities.delete(contiguityName)
+          break
         }
-        newVertices.push({
-          center,
-          r2,
-          name: newVertexName,
-          formingPoints: newFormingPoints,
-          neighbouringVertices: reservedVertices,
-        })
-        break
       }
-      case ContiguityDeletedStates.deleted: {
-        contiguities.delete(contiguityName)
-        break
-      }
-    }
+    })
+
+  // 删除应该删除的vertices
+  verticesNeedDelete.forEach((vertexName) => {
+    vertices.delete(vertexName)
   })
 
   // 完善新加的vertices的neighbouringVertices
@@ -228,7 +261,15 @@ function addPoint(pq: PointName) {
 
   // 添加新的vertices
   newVertices.forEach((newVertex) => {
-    newVertex.neighbouringVertices = uniq(newVertex.neighbouringVertices)
+    // 上一步会导致存在两两重复, 需要去重
+    // 还需要移除已删除的vertices
+    newVertex.neighbouringVertices = filter(
+      uniq(newVertex.neighbouringVertices),
+      (vertexName) => !verticesNeedDelete.includes(vertexName)
+    )
+    if (newVertex.neighbouringVertices.length < 3) {
+      newVertex.neighbouringVertices.push('v-1')
+    }
     if (newVertex.neighbouringVertices.length !== 3) {
       debugger
     }
@@ -238,17 +279,31 @@ function addPoint(pq: PointName) {
   // 更新"接触"
   Array.from(vertices.entries()).forEach(
     ([_, { formingPoints, neighbouringVertices }]) => {
-      const [pa, pb, pc] = formingPoints.map((p) => points.get(p) as Point)
+      const [pa, pb, pc] = formingPoints.map(
+        (p) => ({ ...points.get(p) } as Point)
+      )
       const [va, vb, vc] = neighbouringVertices.map(
+        // 这里返回新的对象, 在vertex 是无穷远时, vertices.get 会返回相同的对象, 导致each2判断错误
         (v) => ({ ...vertices.get(v) } as Vertex)
       )
       const pointPairs = groupPairs([pa, pb, pc])
       const vertexPairs = groupPairs([va, vb, vc])
+      const matchedPoints = {
+        [pa.name]: 0,
+        [pb.name]: 0,
+        [pc.name]: 0,
+      }
+      const matchedVertices = {
+        [va.name]: 0,
+        [vb.name]: 0,
+        [vc.name]: 0,
+      }
       each2(
         pointPairs,
         vertexPairs,
         ([pa, pb], [va, vb]) => {
           if (!vb) debugger
+          // points连线和vertices连线垂直, 说明这两个points构成的"接触"就是这两个vertices连成的"接触"
           return isPerpendicular([pa.coord, pb.coord], [va.center, vb.center])
         },
         ([pa, pb], [va, vb]) => {
@@ -269,8 +324,37 @@ function addPoint(pq: PointName) {
           } else {
             contiguities.set(na, contiguity)
           }
+          matchedPoints[pa.name] += 1
+          matchedPoints[pb.name] += 1
+          matchedVertices[va.name] += 1
+          matchedVertices[vb.name] += 1
         }
       )
+      // 无穷远的接触没法计算垂直, matchedPoints包含的情况之外的两点组合就对应无穷远的接触
+      const [unusedPa, unusedPb] = entries(matchedPoints).reduce(
+        (acc, [key, value]) => {
+          if (value === 1) {
+            acc.push(key)
+          }
+          return acc
+        },
+        [] as string[]
+      ) as [PointName, PointName]
+      const [unusedVa, unusedVb] = entries(matchedVertices).reduce(
+        (acc, [key, value]) => {
+          if (value === 1) {
+            acc.push(key)
+          }
+          return acc
+        },
+        [] as string[]
+      ) as [VertexName, VertexName]
+      if (unusedPa && unusedPb) {
+        contiguities.set(`${unusedPa}${splitter}${unusedPb}`, {
+          deletedState: ContiguityDeletedStates.intact,
+          vertices: [unusedVa, unusedVb],
+        })
+      }
     }
   )
 }

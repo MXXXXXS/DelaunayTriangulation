@@ -45,7 +45,7 @@ export const isPerpendicular = (
   // https://en.wikipedia.org/wiki/Machine_epsilon
   // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/EPSILON
   const dotProduct = v1[0] * v2[0] + v1[1] * v2[1]
-  return isNaN(dotProduct) ? true : dotProduct < Number.EPSILON
+  return dotProduct < Number.EPSILON
 }
 
 export const groupPairs = <T>(array: T[]) => {
