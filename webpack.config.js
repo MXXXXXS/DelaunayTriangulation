@@ -9,4 +9,4 @@ const appConfig = require('./webpack/app')
 
 console.log('isProduction: ', isProduction)
 
-module.exports = [appConfig(isProduction, outputDir, useReloading)]
+module.exports = [appConfig(isProduction, outputDir)]

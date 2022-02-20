@@ -2,7 +2,7 @@ const { ProvidePlugin } = require('webpack')
 const { resolve } = require('path')
 
 const workspace = resolve(__dirname, '..')
-const public = resolve(workspace, 'src/app/public')
+const public = resolve(workspace, 'src/public')
 
 const entry = resolve(workspace, 'src/app.tsx')
 
@@ -14,12 +14,11 @@ const favicon = resolve(public, 'favicon.ico')
 const config = (isProduction, outputDir) => ({
   // target: 'electron-renderer',
   mode: isProduction ? 'production' : 'development',
-  watch: !isProduction,
   devtool: isProduction ? undefined : 'source-map',
-  devServer: {
-    port: '3003',
-    static: './src/app/public',
-  },
+  // devServer: {
+  //   port: '3003',
+  //   static: './src/app/public',
+  // },
   module: {
     rules: [
       {
@@ -62,7 +61,7 @@ const config = (isProduction, outputDir) => ({
   },
   resolve: {
     alias: {
-      '~': resolve(workspace, 'src/app'),
+      '~': resolve(workspace, 'src'),
     },
     extensions: ['.tsx', '.ts', '.js'],
   },
@@ -75,11 +74,11 @@ const config = (isProduction, outputDir) => ({
     // publicPath: '/'
   },
   plugins: [
-    new HTMLWebpackPlugin({
-      template: htmlTemplate,
-      // favicon: favicon,
-      filename: 'index.html',
-    }),
+    // new HTMLWebpackPlugin({
+    //   template: htmlTemplate,
+    //   // favicon: favicon,
+    //   filename: 'index.html',
+    // }),
     new ProvidePlugin({
       styled: [
         resolve(

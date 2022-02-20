@@ -22,5 +22,11 @@ export const circum = (a: Coord, b: Coord, c: Coord): Circum => {
       (((a_0 - c_0) * (a_0 + c_0) + (a_1 - c_1) * (a_1 + c_1)) / 2) *
         (b_0 - c_0)) /
     D
-  return { center: [p_0, p_1], r2: (c_0 - p_0) ** 2 + (c_1 - p_1) ** 2 }
+  const r2 = (c_0 - p_0) ** 2 + (c_1 - p_1) ** 2
+  const center: Coord = [p_0, p_1]
+  if (r2 < 0) {
+    debugger
+  }
+
+  return { center, r2 }
 }
