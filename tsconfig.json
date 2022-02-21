@@ -3,7 +3,7 @@
     "module": "CommonJS",
     "esModuleInterop": true,
     "jsx": "react",
-    "target": "ES5",
+    "target": "ESNext",
     "allowUmdGlobalAccess": true,
     "outDir": "dist",
     "noImplicitAny": true,

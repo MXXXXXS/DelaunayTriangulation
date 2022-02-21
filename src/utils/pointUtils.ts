@@ -1,7 +1,5 @@
 import * as d3 from 'd3'
 
-import { PointName } from "../features/bowyer's algorithm/bowyer'sAlg"
-
 export type Coord = [x: number, y: number]
 
 const mathRandomDomain = [0, 1]
@@ -81,6 +79,52 @@ export const each2 = <I, J>(
         i = -1
         break
       }
+    }
+  }
+}
+
+export type PointName = `p${number}`
+export type VertexName = `v${number}`
+export const splitter = ','
+type Splitter = typeof splitter
+export type ContiguityName = `${PointName}${Splitter}${PointName}`
+
+export enum ContiguityDeletedStates {
+  intact,
+  half,
+  deleted,
+}
+
+export interface Contiguity {
+  name: ContiguityName
+  deletedState: ContiguityDeletedStates
+  vertices: [VertexName, VertexName]
+  points: [PointName, PointName]
+}
+
+export class Contiguities {
+  #contiguities = new Map<ContiguityName, Contiguity>()
+  set(pa: PointName, pb: PointName, contiguity: Contiguity) {
+    // 避免ContiguityName重复
+    const existingContiguity = this.get(pa, pb)
+    if (existingContiguity) {
+      this.#contiguities.set(existingContiguity.name, contiguity)
+    } else {
+      this.#contiguities.set(contiguity.name, contiguity)
+    }
+  }
+  get(pa: PointName, pb: PointName) {
+    const na: ContiguityName = `${pa}${splitter}${pb}`
+    const nb: ContiguityName = `${pb}${splitter}${pa}`
+    return this.#contiguities.get(na) || this.#contiguities.get(nb)
+  }
+  entries() {
+    return this.#contiguities.entries()
+  }
+  delete(pa: PointName, pb: PointName) {
+    const contiguity = this.get(pa, pb)
+    if (contiguity) {
+      this.#contiguities.delete(contiguity.name)
     }
   }
 }
