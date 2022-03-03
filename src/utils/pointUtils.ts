@@ -1,6 +1,22 @@
 import * as d3 from 'd3'
+import { intersection } from 'lodash'
+
+import { Circum } from '~/utils/circum'
 
 export type Coord = [x: number, y: number]
+
+type FormingPoints = [PointName, PointName, PointName]
+type NeighbouringVertices = [VertexName, VertexName, VertexName]
+export interface Vertex extends Circum {
+  name: VertexName
+  formingPoints: FormingPoints
+  neighbouringVertices: NeighbouringVertices
+}
+
+export interface Point {
+  name: PointName
+  coord: Coord
+}
 
 const mathRandomDomain = [0, 1]
 const mathRandomDomainScale = (domain: Coord) =>
@@ -34,23 +50,11 @@ export const distance2 = (a: Coord, b: Coord) => {
   return (a0 - b0) ** 2 + (a1 - b1) ** 2
 }
 
-export const isPerpendicular = (
-  lineA: [Coord, Coord],
-  lineB: [Coord, Coord]
-) => {
-  const v1 = [lineA[1][0] - lineA[0][0], lineA[1][1] - lineA[0][1]]
-  const v2 = [lineB[1][0] - lineB[0][0], lineB[1][1] - lineB[0][1]]
-  // https://en.wikipedia.org/wiki/Machine_epsilon
-  // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/EPSILON
-  const dotProduct = v1[0] * v2[0] + v1[1] * v2[1]
-  return dotProduct < Number.EPSILON
-}
-
 export const groupPairs = <T>(array: T[]) => {
   const result: [T, T][] = []
   for (let i = 0; i < array.length; i++) {
     const ei = array[i]
-    for (let j = 0; j < array.length; j++) {
+    for (let j = i + 1; j < array.length; j++) {
       const ej = array[j]
       if (ei !== ej) {
         result.push([ei, ej])
@@ -60,71 +64,33 @@ export const groupPairs = <T>(array: T[]) => {
   return result
 }
 
-export const each2 = <I, J>(
-  arrI: I[],
-  arrJ: J[],
-  isMatch: (ei: I, ej: J) => boolean,
-  whenMatch: (ei: I, ej: J) => void
-) => {
-  const aI = [...arrI]
-  const aJ = [...arrJ]
-  for (let i = 0; i < aI.length; i++) {
-    const ei = aI[i]
-    for (let j = 0; j < aJ.length; j++) {
-      const ej = aJ[j]
-      if (isMatch(ei, ej)) {
-        whenMatch(ei, ej)
-        aI.splice(i, 1)
-        aJ.splice(j, 1)
-        i = -1
-        break
-      }
-    }
-  }
-}
-
 export type PointName = `p${number}`
 export type VertexName = `v${number}`
-export const splitter = ','
-type Splitter = typeof splitter
-export type ContiguityName = `${PointName}${Splitter}${PointName}`
 
-export enum ContiguityDeletedStates {
-  intact,
-  half,
-  deleted,
-}
-
-export interface Contiguity {
-  name: ContiguityName
-  deletedState: ContiguityDeletedStates
-  vertices: [VertexName, VertexName]
-  points: [PointName, PointName]
-}
-
-export class Contiguities {
-  #contiguities = new Map<ContiguityName, Contiguity>()
-  set(pa: PointName, pb: PointName, contiguity: Contiguity) {
-    // 避免ContiguityName重复
-    const existingContiguity = this.get(pa, pb)
-    if (existingContiguity) {
-      this.#contiguities.set(existingContiguity.name, contiguity)
-    } else {
-      this.#contiguities.set(contiguity.name, contiguity)
+export const findVertexByFormingPointNames = (
+  vertices: Map<VertexName, Vertex>,
+  formingPointNames: PointName[],
+  ignoreVertics: VertexName[] = []
+) =>
+  Array.from(vertices.values()).reduce((acc, cur) => {
+    if (ignoreVertics.includes(cur.name)) return acc
+    if (
+      intersection(cur.formingPoints, formingPointNames).length ===
+      formingPointNames.length
+    ) {
+      acc.push(cur.name)
     }
-  }
-  get(pa: PointName, pb: PointName) {
-    const na: ContiguityName = `${pa}${splitter}${pb}`
-    const nb: ContiguityName = `${pb}${splitter}${pa}`
-    return this.#contiguities.get(na) || this.#contiguities.get(nb)
-  }
-  entries() {
-    return this.#contiguities.entries()
-  }
-  delete(pa: PointName, pb: PointName) {
-    const contiguity = this.get(pa, pb)
-    if (contiguity) {
-      this.#contiguities.delete(contiguity.name)
+    return acc
+  }, [] as VertexName[])
+
+export const findVertexByNeighbouringVertexName = (
+  vertices: Map<VertexName, Vertex>,
+  neighbouringVertexName: VertexName
+) => {
+  Array.from(vertices.values()).reduce((acc, cur) => {
+    if (cur.neighbouringVertices.includes(neighbouringVertexName)) {
+      acc.push(cur.name)
     }
-  }
+    return acc
+  }, [] as VertexName[])
 }

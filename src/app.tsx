@@ -37,4 +37,4 @@
 
 // ReactDOM.render(<App></App>, document.body.querySelector('#root'))
 
-import "./features/bowyer's algorithm/bowyer'sAlg"
+import './features/bowyersAlgorithm/bowyersAlgorithm'
