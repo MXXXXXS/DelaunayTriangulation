@@ -1,4 +1,5 @@
 const { ProvidePlugin } = require('webpack')
+const NodePolyfillPlugin = require('node-polyfill-webpack-plugin')
 const { resolve } = require('path')
 
 const workspace = resolve(__dirname, '..')
@@ -12,7 +13,7 @@ const htmlTemplate = resolve(public, 'index.html')
 const favicon = resolve(public, 'favicon.ico')
 
 const config = (isProduction, outputDir) => ({
-  // target: 'electron-renderer',
+  target: 'web',
   mode: isProduction ? 'production' : 'development',
   devtool: isProduction ? undefined : 'source-map',
   // devServer: {
@@ -74,11 +75,12 @@ const config = (isProduction, outputDir) => ({
     // publicPath: '/'
   },
   plugins: [
-    // new HTMLWebpackPlugin({
-    //   template: htmlTemplate,
-    //   // favicon: favicon,
-    //   filename: 'index.html',
-    // }),
+    new NodePolyfillPlugin(),
+    new HTMLWebpackPlugin({
+      template: htmlTemplate,
+      // favicon: favicon,
+      filename: 'index.html',
+    }),
     new ProvidePlugin({
       styled: [
         resolve(

@@ -1,5 +1,6 @@
 /* eslint-disable no-debugger */
-import { identity, intersection, uniq } from 'lodash'
+// import assert from 'assert'
+import { intersection, remove, uniq } from 'lodash'
 
 import { circum } from '~/utils/circum'
 import {
@@ -16,7 +17,7 @@ import { Point, Vertex } from '~/utils/pointUtils'
 import { surroundingTriangle } from '~/utils/surroundingTriangle'
 
 // 准备好存储结构
-const points = new Map<PointName, Point>()
+export const points = new Map<PointName, Point>()
 
 const vertices = new Map<VertexName, Vertex>()
 
@@ -74,10 +75,22 @@ vertices.set('v0', {
   ),
 })
 
-// 开始插入点
 let vertexIndex = 1
-for (let i = 0; i < totalPointCounts; i++) {
-  addPoint(`p${i}`)
+let pointIndex = 0
+const pointsAdded: PointName[] = ['p-1', 'p-2', 'p-3']
+export function getNextDiagram() {
+  if (pointIndex < totalPointCounts) {
+    const pq: PointName = `p${pointIndex}`
+    addPoint(pq)
+    pointsAdded.push(pq)
+    vertexIndex++
+    pointIndex++
+  }
+  const pointsMap = pointsAdded.reduce((acc, pointName) => {
+    acc.set(pointName, points.get(pointName) as Point)
+    return acc
+  }, new Map<PointName, Point>())
+  return { vertices, points: pointsMap }
 }
 
 function addPoint(pq: PointName) {
@@ -85,12 +98,17 @@ function addPoint(pq: PointName) {
 
   // 插入点q后, 会有vertex不再成立. 找出这些vertices, 标记为需要删除的vertices
   const verticesNeedDelete: VertexName[] = []
-  Array.from(vertices.entries()).forEach(([v, { r2, center }]) => {
+  for (const [v, { r2, center }] of vertices) {
     const vertexIsInvalid = distance2(center, pqCoord.coord) < r2
     if (vertexIsInvalid) {
       verticesNeedDelete.push(v)
     }
-  })
+  }
+  for (const [_, vertex] of vertices) {
+    remove(vertex.neighbouringVertices, (vertexName) => {
+      return verticesNeedDelete.includes(vertexName)
+    })
+  }
 
   // 找出q周围的points, 即被删除的vertices的forming points
   const pointsContiguousToQ: PointName[] = uniq(
@@ -103,11 +121,16 @@ function addPoint(pq: PointName) {
     }, [] as PointName[])
   )
 
+  // 删除应该删除的vertices
+  verticesNeedDelete.forEach((vertexName) => {
+    vertices.delete(vertexName)
+  })
+
   // 计算新形成的vertices, pointsContiguousToQ中任意2个points和Q构成一个新的vertex
   const newVertices: (Omit<Vertex, 'neighbouringVertices'> & {
     neighbouringVertices: VertexName[]
   })[] = []
-  groupPairs(pointsContiguousToQ, identity).forEach(([pointA, pointB]) => {
+  groupPairs(pointsContiguousToQ).forEach(([pointA, pointB]) => {
     const pqCoord = points.get(pq)?.coord as Coord
     const pointACoord = points.get(pointA)?.coord as Coord
     const pointBCoord = points.get(pointB)?.coord as Coord
@@ -127,44 +150,30 @@ function addPoint(pq: PointName) {
   newVertices.forEach((newVertex) => {
     const { formingPoints } = newVertex
     const [_, pa, pb] = formingPoints
-    const result = findVertexByFormingPointNames(
-      vertices,
-      [pa, pb],
-      verticesNeedDelete
-    )
+    const result = findVertexByFormingPointNames(vertices, [pa, pb])
     if (result.length === 1) {
-      if (!newVertex.neighbouringVertices) {
-        newVertex.neighbouringVertices = [result[0]]
-      } else {
-        newVertex.neighbouringVertices.push(result[0])
-      }
+      newVertex.neighbouringVertices.push(result[0])
+      // assert.equal(newVertex.neighbouringVertices.length, 1)
     }
+    // assert.ok(result.length < 2)
   })
   // 2. 新形成的vertex之间
-  groupPairs(newVertices).forEach(([vertexA, vertexB], _, pairs) => {
+  groupPairs(newVertices).forEach(([vertexA, vertexB]) => {
     const result = intersection(vertexA.formingPoints, vertexB.formingPoints)
     if (result.length === 2) {
-      // 防止重复
-      if (!vertexB.neighbouringVertices.includes(vertexA.name)) {
-        vertexB.neighbouringVertices.push(vertexA.name)
-      }
-      if (!vertexA.neighbouringVertices.includes(vertexB.name)) {
-        vertexA.neighbouringVertices.push(vertexB.name)
-      }
+      // assert.ok(vertexB.neighbouringVertices.length < 3)
+      vertexB.neighbouringVertices.push(vertexA.name)
+      vertexA.neighbouringVertices.push(vertexB.name)
     }
   })
   newVertices.forEach((vertex) => {
+    // assert.ok(vertex.neighbouringVertices.length <= 3)
     vertices.set(vertex.name, vertex as Vertex)
-  })
-
-  // 删除应该删除的vertices
-  verticesNeedDelete.forEach((vertexName) => {
-    vertices.delete(vertexName)
   })
 }
 
-console.log(vertices)
-console.log(points)
+// console.log(vertices)
+// console.log(points)
 
 // eslint-disable-next-line no-debugger
-debugger
+// debugger
